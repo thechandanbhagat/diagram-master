@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "drawio-diagram": {
+      "command": "node",
+      "args": [
+        "D:\\TopSecret\\diagram-master\\index.js"
+      ],
+      "env": {
+        "DRAWIO_OUTPUT_DIR": "D:\\Diagrams"
+      }
+    }
+  }
+}
