@@ -1,23 +1,25 @@
 {
   "name": "diagram-master",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP Server for generating Draw.io compatible diagrams from natural language prompts",
   "type": "module",
   "main": "index.js",
   "bin": {
-    "diagram-master": "./index.js"
+    "diagram-master": "index.js"
   },
   "files": [
     "index.js",
     "drawio-generator.js",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "start": "node index.js"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/thechandanbhagat/diagram-master.git"
+    "url": "git+https://github.com/thechandanbhagat/diagram-master.git"
   },
   "keywords": [
     "mcp",
