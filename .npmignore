@@ -1,0 +1,19 @@
+# Development files
+test/
+reproduce_issue.js
+verify_fixes.js
+verify_layout.js
+*.drawio
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Editor directories
+.vscode/
+.idea/
