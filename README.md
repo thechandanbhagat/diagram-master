@@ -12,6 +12,10 @@ A Model Context Protocol (MCP) server that generates Draw.io compatible diagrams
 - **Custom Diagrams**: Full control over shapes, positions, and connections for any diagram type
 - **Draw.io Compatible**: Outputs valid Draw.io XML format that can be imported directly
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=thechandanbhagat/diagram-master&type=date&legend=top-left)](https://www.star-history.com/#thechandanbhagat/diagram-master&type=date&legend=top-left)
+
 ## Installation
 
 1. Clone or download this repository
