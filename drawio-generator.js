@@ -256,43 +256,65 @@ export class DrawioGenerator {
     const interactionSpacing = 60; // Vertical space between messages
     const topMargin = 50;
     const participantIds = {};
+    const lifelineHeight = interactions.length * interactionSpacing + 100;
 
-    // Calculate total height needed
-    const totalHeight = (interactions.length * interactionSpacing) + 100;
-
-    // Create participants
+    // Create Participants (Lifelines)
     participants.forEach((participant, index) => {
       const x = 100 + (index * participantSpacing);
-      // Make the lifeline long enough for all interactions
-      const shape = this.createShape(participant, 'actor', x, topMargin, 40, totalHeight);
-      elements.push(shape);
-      participantIds[participant] = shape.id;
+      const y = topMargin;
+
+      // UML Lifeline Shape
+      // shape=umlLifeline;participant=umlActor;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;verticalAlign=top;spacingTop=36;outlineConnect=0;
+      // We'll use a standard rectangle with a dashed line for simplicity and better control, 
+      // or the specific umlLifeline shape if we can get the style right.
+      // Let's use the standard 'umlLifeline' shape which includes the head and the line.
+
+      const style = 'shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;';
+      const width = 100;
+      const height = lifelineHeight; // The line extends down
+
+      const lifeline = this.createShape(participant, 'umlLifeline', x, y, width, height);
+      // Override style to ensure it looks right
+      lifeline.xml = lifeline.xml.replace(/style="[^"]*"/, `style="${style}"`);
+
+      elements.push(lifeline);
+      participantIds[participant] = { id: lifeline.id, x: x + width / 2 }; // Store center X
     });
 
-    // Create interactions with proper vertical spacing
-    let currentY = topMargin + 80; // Start below the actors
+    let currentY = topMargin + 80; // Start messages below the headers
 
+    // Create Interactions
     interactions.forEach((interaction, index) => {
-      const sourceId = participantIds[interaction.from];
-      const targetId = participantIds[interaction.to];
+      const source = participantIds[interaction.from];
+      const target = participantIds[interaction.to];
 
-      if (sourceId && targetId) {
-        // Find X coordinates of source and target actors
-        const sourceIndex = participants.indexOf(interaction.from);
-        const targetIndex = participants.indexOf(interaction.to);
-        const sourceX = 100 + (sourceIndex * participantSpacing) + 20; // Center of actor
-        const targetX = 100 + (targetIndex * participantSpacing) + 20; // Center of actor
+      if (source && target) {
+        // 1. Activation Bars (Focus of Control)
+        // We add a small rectangle on the lifeline at the point of interaction
+        // For simplicity, we'll just add small rectangles for each message point.
+        // A full activation bar logic requires tracking start/end of calls, which is complex for this simple input.
+        // We will just place the message.
 
-        const style = 'edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;' +
-          (interaction.dashed ? 'dashed=1;' : '') +
-          'endArrow=' + (interaction.dashed ? 'open' : 'block') + ';' +
-          'endFill=' + (interaction.dashed ? '0' : '1') + ';';
+        // 2. Message Arrows
+        // Solid for request (default), Dashed for reply (dashed=true)
+        let edgeStyle = 'html=1;verticalAlign=bottom;endArrow=block;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;';
+        if (interaction.dashed) {
+          edgeStyle += 'dashed=1;endArrow=open;'; // Reply message style
+        } else {
+          edgeStyle += 'endFill=1;'; // Solid arrow for request
+        }
 
+        // Anchor points on the lifelines
+        // We need to create "points" on the lifeline to connect to.
+        // Since umlLifeline is a single shape, we can connect to it directly, but specifying the Y coordinate is tricky with standard connectors.
+        // We will use the same trick as before: invisible small circles on the lifeline path.
+
+        const sourceX = source.x;
+        const targetX = target.x;
+
+        const pointStyle = 'shape=ellipse;fillColor=none;strokeColor=none;resizable=0;';
         const sourcePointId = this.getNextId();
         const targetPointId = this.getNextId();
-
-        // Invisible nodes
-        const pointStyle = 'shape=ellipse;fillColor=none;strokeColor=none;resizable=0;';
 
         const sourcePoint = this.createCell('', pointStyle, `x="${sourceX}" y="${currentY}" width="0" height="0" as="geometry"`, sourcePointId, '1', true);
         const targetPoint = this.createCell('', pointStyle, `x="${targetX}" y="${currentY}" width="0" height="0" as="geometry"`, targetPointId, '1', true);
@@ -300,8 +322,29 @@ export class DrawioGenerator {
         elements.push(sourcePoint);
         elements.push(targetPoint);
 
-        // Connect them
-        const connector = this.createConnector(sourcePointId, targetPointId, interaction.message, style);
+        // Activation Bar (Visual candy)
+        // Add a small rectangle at source and target to simulate activation
+        const activationWidth = 10;
+        const activationHeight = 20; // Short activation for single message
+        const activationStyle = 'html=1;whiteSpace=wrap;fillColor=#ffffff;';
+
+        // We center the activation bar on the lifeline
+        const sourceActivation = this.createShape('', 'rectangle', sourceX - activationWidth / 2, currentY - 10, activationWidth, activationHeight);
+        sourceActivation.xml = sourceActivation.xml.replace(/style="[^"]*"/, `style="${activationStyle}"`);
+        elements.push(sourceActivation);
+
+        const targetActivation = this.createShape('', 'rectangle', targetX - activationWidth / 2, currentY - 10, activationWidth, activationHeight);
+        targetActivation.xml = targetActivation.xml.replace(/style="[^"]*"/, `style="${activationStyle}"`);
+        elements.push(targetActivation);
+
+        // Connect the activation bars? Or just the points?
+        // Connecting points is safer for straight lines.
+        // But visually we want the arrow to touch the activation bar.
+        // Let's connect the points which are at the center of the lifeline. 
+        // The activation bar sits on top. The line might overlap the activation bar slightly or be behind it.
+        // To make it look perfect, we should connect to the activation bars.
+
+        const connector = this.createConnector(sourceActivation.id, targetActivation.id, interaction.message, edgeStyle);
         elements.push(connector);
 
         currentY += interactionSpacing;
@@ -336,6 +379,83 @@ export class DrawioGenerator {
 
       if (sourceId && targetId) {
         const connector = this.createConnector(sourceId, targetId, conn.label || '');
+        elements.push(connector);
+      }
+    });
+
+    return this.generateDiagram(elements);
+  }
+
+  createERD(entities, relationships) {
+    const elements = [];
+    const entityIds = {};
+
+    // Layout parameters
+    const startX = 100;
+    const startY = 100;
+    const entityWidth = 160;
+    const attributeHeight = 26;
+    const headerHeight = 30;
+    const spacingX = 250;
+    const spacingY = 200;
+
+    // Simple grid layout
+    let currentX = startX;
+    let currentY = startY;
+    const itemsPerRow = 3;
+
+    entities.forEach((entity, index) => {
+      // Calculate position
+      if (index > 0 && index % itemsPerRow === 0) {
+        currentX = startX;
+        currentY += spacingY;
+      }
+
+      const totalHeight = headerHeight + (entity.attributes.length * attributeHeight);
+
+      // Entity Header (Table Name)
+      // Using 'swimlane' style for table-like look or just a rectangle
+      // Let's use a rectangle for the header and stack attributes below
+      const headerStyle = 'rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontWeight=bold;';
+      const header = this.createShape(entity.name, 'rectangle', currentX, currentY, entityWidth, headerHeight);
+      // Override style
+      header.xml = header.xml.replace(/style="[^"]*"/, `style="${headerStyle}"`);
+
+      elements.push(header);
+      entityIds[entity.id] = header.id;
+
+      // Attributes
+      entity.attributes.forEach((attr, attrIndex) => {
+        const attrY = currentY + headerHeight + (attrIndex * attributeHeight);
+        const attrStyle = 'rounded=0;whiteSpace=wrap;html=1;align=left;spacingLeft=10;';
+        const attrShape = this.createShape(attr, 'rectangle', currentX, attrY, entityWidth, attributeHeight);
+        attrShape.xml = attrShape.xml.replace(/style="[^"]*"/, `style="${attrStyle}"`);
+        elements.push(attrShape);
+      });
+
+      // Grouping rectangle (optional, but good for moving)
+      // For simplicity in this generator, we just place them. 
+      // Draw.io grouping requires group cells, which adds complexity.
+
+      currentX += spacingX;
+    });
+
+    // Relationships
+    relationships.forEach(rel => {
+      const sourceId = entityIds[rel.from];
+      const targetId = entityIds[rel.to];
+
+      if (sourceId && targetId) {
+        // ERD connectors usually have specific endings (crows foot etc)
+        // For now, we use standard lines with labels
+        const style = 'edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;';
+
+        const connector = this.createConnector(sourceId, targetId, rel.label || '', style);
+
+        // Add cardinality labels if provided (simple text approach)
+        // Real ERD connectors in Draw.io are complex.
+        // We'll stick to simple labeled lines for v1.
+
         elements.push(connector);
       }
     });

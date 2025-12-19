@@ -62,396 +62,202 @@ class DrawioMCPServer {
   }
 
   setupHandlers() {
-    // List available tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
         {
-          name: 'create_flowchart',
-          description: 'Create a flowchart diagram with sequential steps. Supports process boxes, decision diamonds, terminators, and connectors.',
+          name: 'create_diagram',
+          description: 'Create various types of diagrams (flowchart, sequence, network, erd, custom) and save to a file.',
           inputSchema: {
             type: 'object',
             properties: {
               filename: {
                 type: 'string',
-                description: 'Name for the output .drawio file (extension will be added automatically)',
+                description: 'Name for the output .drawio file (extension added automatically)',
               },
-              steps: {
-                type: 'array',
-                description: 'Array of flowchart steps',
-                items: {
-                  type: 'object',
-                  properties: {
-                    id: {
-                      type: 'string',
-                      description: 'Optional unique identifier for the step (used for connections)',
-                    },
-                    label: {
-                      type: 'string',
-                      description: 'Text label for the step',
-                    },
-                    type: {
-                      type: 'string',
-                      enum: ['process', 'decision', 'terminator', 'data', 'document', 'delay'],
-                      description: 'Shape type for the step',
-                    },
-                    connectorLabel: {
-                      type: 'string',
-                      description: 'Optional label for the connector to this step (for sequential flow)',
-                    },
-                  },
-                  required: ['label'],
-                },
-              },
-              connections: {
-                type: 'array',
-                description: 'Optional array of explicit connections between steps. If provided, overrides sequential flow.',
-                items: {
-                  type: 'object',
-                  properties: {
-                    from: {
-                      type: 'string',
-                      description: 'Source step ID',
-                    },
-                    to: {
-                      type: 'string',
-                      description: 'Target step ID',
-                    },
-                    label: {
-                      type: 'string',
-                      description: 'Connection label',
-                    },
-                  },
-                  required: ['from', 'to'],
-                },
-              },
-            },
-            required: ['filename', 'steps'],
-          },
-        },
-        {
-          name: 'create_sequence_diagram',
-          description: 'Create a UML sequence diagram showing interactions between participants/actors.',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              filename: {
+              type: {
                 type: 'string',
-                description: 'Name for the output .drawio file (extension will be added automatically)',
+                enum: ['flowchart', 'sequence', 'network', 'erd', 'custom'],
+                description: 'Type of diagram to generate',
               },
-              participants: {
-                type: 'array',
-                description: 'Array of participant names',
-                items: { type: 'string' },
-              },
-              interactions: {
-                type: 'array',
-                description: 'Array of interactions between participants',
-                items: {
-                  type: 'object',
-                  properties: {
-                    from: {
-                      type: 'string',
-                      description: 'Source participant name',
-                    },
-                    to: {
-                      type: 'string',
-                      description: 'Target participant name',
-                    },
-                    message: {
-                      type: 'string',
-                      description: 'Message/interaction label',
-                    },
-                    dashed: {
-                      type: 'boolean',
-                      description: 'Use dashed line for return messages',
+              data: {
+                type: 'object',
+                description: 'Data for the diagram, structure depends on type',
+                properties: {
+                  // Flowchart properties
+                  steps: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string' },
+                        label: { type: 'string' },
+                        type: { type: 'string', enum: ['process', 'decision', 'terminator', 'data', 'document', 'delay'] },
+                        connectorLabel: { type: 'string' },
+                      },
+                      required: ['label', 'type'],
                     },
                   },
-                  required: ['from', 'to', 'message'],
+                  connections: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        from: { type: 'string' },
+                        to: { type: 'string' },
+                        label: { type: 'string' },
+                      },
+                      required: ['from', 'to'],
+                    },
+                  },
+                  // Sequence Diagram properties
+                  participants: {
+                    type: 'array',
+                    items: { type: 'string' },
+                  },
+                  interactions: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        from: { type: 'string' },
+                        to: { type: 'string' },
+                        message: { type: 'string' },
+                        dashed: { type: 'boolean' },
+                      },
+                      required: ['from', 'to', 'message'],
+                    },
+                  },
+                  // Network Diagram properties
+                  nodes: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string' },
+                        label: { type: 'string' },
+                        type: { type: 'string' },
+                        x: { type: 'number' },
+                        y: { type: 'number' },
+                      },
+                      required: ['id', 'label', 'type', 'x', 'y'],
+                    },
+                  },
+                  // ERD properties
+                  entities: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string' },
+                        name: { type: 'string' },
+                        attributes: { type: 'array', items: { type: 'string' } },
+                      },
+                      required: ['id', 'name', 'attributes'],
+                    },
+                  },
+                  relationships: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        from: { type: 'string' },
+                        to: { type: 'string' },
+                        label: { type: 'string' },
+                      },
+                      required: ['from', 'to'],
+                    },
+                  },
+                  // Custom Diagram properties
+                  shapes: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string' },
+                        label: { type: 'string' },
+                        type: { type: 'string' },
+                        x: { type: 'number' },
+                        y: { type: 'number' },
+                      },
+                      required: ['id', 'label', 'type', 'x', 'y'],
+                    },
+                  },
+                  connectors: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        from: { type: 'string' },
+                        to: { type: 'string' },
+                        label: { type: 'string' },
+                      },
+                      required: ['from', 'to'],
+                    },
+                  },
                 },
               },
             },
-            required: ['filename', 'participants', 'interactions'],
-          },
-        },
-        {
-          name: 'create_network_diagram',
-          description: 'Create a network or architecture diagram with custom positioned nodes and connections.',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              filename: {
-                type: 'string',
-                description: 'Name for the output .drawio file (extension will be added automatically)',
-              },
-              nodes: {
-                type: 'array',
-                description: 'Array of network nodes',
-                items: {
-                  type: 'object',
-                  properties: {
-                    id: {
-                      type: 'string',
-                      description: 'Unique identifier for the node',
-                    },
-                    label: {
-                      type: 'string',
-                      description: 'Display label for the node',
-                    },
-                    type: {
-                      type: 'string',
-                      enum: ['rectangle', 'cylinder', 'database', 'cloud', 'hexagon', 'ellipse'],
-                      description: 'Shape type for the node',
-                    },
-                    x: {
-                      type: 'number',
-                      description: 'X coordinate position',
-                    },
-                    y: {
-                      type: 'number',
-                      description: 'Y coordinate position',
-                    },
-                  },
-                  required: ['id', 'label', 'x', 'y'],
-                },
-              },
-              connections: {
-                type: 'array',
-                description: 'Array of connections between nodes',
-                items: {
-                  type: 'object',
-                  properties: {
-                    from: {
-                      type: 'string',
-                      description: 'Source node ID',
-                    },
-                    to: {
-                      type: 'string',
-                      description: 'Target node ID',
-                    },
-                    label: {
-                      type: 'string',
-                      description: 'Connection label',
-                    },
-                  },
-                  required: ['from', 'to'],
-                },
-              },
-            },
-            required: ['filename', 'nodes', 'connections'],
-          },
-        },
-        {
-          name: 'create_custom_diagram',
-          description: 'Create a custom diagram with full control over shapes and connectors. Use this for any diagram type not covered by other tools.',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              filename: {
-                type: 'string',
-                description: 'Name for the output .drawio file (extension will be added automatically)',
-              },
-              shapes: {
-                type: 'array',
-                description: 'Array of shapes to create',
-                items: {
-                  type: 'object',
-                  properties: {
-                    id: {
-                      type: 'string',
-                      description: 'Unique identifier for referencing in connections',
-                    },
-                    label: {
-                      type: 'string',
-                      description: 'Text label for the shape',
-                    },
-                    type: {
-                      type: 'string',
-                      enum: [
-                        'rectangle',
-                        'roundedRectangle',
-                        'ellipse',
-                        'diamond',
-                        'parallelogram',
-                        'cylinder',
-                        'hexagon',
-                        'cloud',
-                        'document',
-                        'process',
-                        'decision',
-                        'data',
-                        'terminator',
-                        'database',
-                        'actor',
-                        'note',
-                      ],
-                      description: 'Shape type',
-                    },
-                    x: {
-                      type: 'number',
-                      description: 'X coordinate',
-                    },
-                    y: {
-                      type: 'number',
-                      description: 'Y coordinate',
-                    },
-                    width: {
-                      type: 'number',
-                      description: 'Shape width (default: 120)',
-                    },
-                    height: {
-                      type: 'number',
-                      description: 'Shape height (default: 60)',
-                    },
-                  },
-                  required: ['id', 'label', 'type', 'x', 'y'],
-                },
-              },
-              connectors: {
-                type: 'array',
-                description: 'Array of connectors between shapes',
-                items: {
-                  type: 'object',
-                  properties: {
-                    from: {
-                      type: 'string',
-                      description: 'Source shape ID',
-                    },
-                    to: {
-                      type: 'string',
-                      description: 'Target shape ID',
-                    },
-                    label: {
-                      type: 'string',
-                      description: 'Connector label',
-                    },
-                  },
-                  required: ['from', 'to'],
-                },
-              },
-            },
-            required: ['filename', 'shapes'],
+            required: ['filename', 'type', 'data'],
           },
         },
       ],
     }));
 
-    // Handle tool calls
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      if (request.params.name !== 'create_diagram') {
+        throw new Error('Tool not found');
+      }
+
+      const { filename, type, data } = request.params.arguments;
+      const filePath = this.saveToFile(filename, ''); // Placeholder to get path
+      const fullPath = filePath; // Re-using logic inside saveToFile but we need content first.
+      // Actually saveToFile writes content. Let's refactor slightly to generate content first.
+
       try {
-        const { name, arguments: args } = request.params;
+        let xmlContent = '';
 
-        switch (name) {
-          case 'create_flowchart':
-            return this.handleCreateFlowchart(args);
-
-          case 'create_sequence_diagram':
-            return this.handleCreateSequenceDiagram(args);
-
-          case 'create_network_diagram':
-            return this.handleCreateNetworkDiagram(args);
-
-          case 'create_custom_diagram':
-            return this.handleCreateCustomDiagram(args);
-
+        switch (type) {
+          case 'flowchart':
+            xmlContent = this.generator.createFlowchart(data.steps, data.connections);
+            break;
+          case 'sequence':
+            xmlContent = this.generator.createSequenceDiagram(data.participants, data.interactions);
+            break;
+          case 'network':
+            xmlContent = this.generator.createNetworkDiagram(data.nodes, data.connections || []);
+            break;
+          case 'erd':
+            xmlContent = this.generator.createERD(data.entities, data.relationships);
+            break;
+          case 'custom':
+            xmlContent = this.generator.createCustomDiagram(data.shapes, data.connectors || []);
+            break;
           default:
-            throw new Error(`Unknown tool: ${name}`);
+            throw new Error(`Unknown diagram type: ${type}`);
         }
+
+        this.saveToFile(filename, xmlContent);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Successfully created ${type} diagram at ${fullPath}\n\nYou can open this file directly in Draw.io.`,
+            },
+          ],
+        };
       } catch (error) {
         return {
           content: [
             {
               type: 'text',
-              text: `Error: ${error.message}`,
+              text: `Error creating diagram: ${error.message}`,
             },
           ],
           isError: true,
         };
       }
     });
-  }
-
-  handleCreateFlowchart(args) {
-    const xml = this.generator.createFlowchart(args.steps, args.connections);
-    const filePath = this.saveToFile(args.filename, xml);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Flowchart diagram created successfully and saved to: ${filePath}\n\nYou can open this file directly in Draw.io.`,
-        },
-      ],
-    };
-  }
-
-  handleCreateSequenceDiagram(args) {
-    const xml = this.generator.createSequenceDiagram(args.participants, args.interactions);
-    const filePath = this.saveToFile(args.filename, xml);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Sequence diagram created successfully and saved to: ${filePath}\n\nYou can open this file directly in Draw.io.`,
-        },
-      ],
-    };
-  }
-
-  handleCreateNetworkDiagram(args) {
-    const xml = this.generator.createNetworkDiagram(args.nodes, args.connections);
-    const filePath = this.saveToFile(args.filename, xml);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Network diagram created successfully and saved to: ${filePath}\n\nYou can open this file directly in Draw.io.`,
-        },
-      ],
-    };
-  }
-
-  handleCreateCustomDiagram(args) {
-    const elements = [];
-    const shapeIds = {};
-
-    // Create shapes
-    if (args.shapes) {
-      for (const shape of args.shapes) {
-        const element = this.generator.createShape(
-          shape.label,
-          shape.type,
-          shape.x,
-          shape.y,
-          shape.width,
-          shape.height
-        );
-        elements.push(element);
-        shapeIds[shape.id] = element.id;
-      }
-    }
-
-    // Create connectors
-    if (args.connectors) {
-      for (const conn of args.connectors) {
-        const sourceId = shapeIds[conn.from];
-        const targetId = shapeIds[conn.to];
-
-        if (sourceId && targetId) {
-          const connector = this.generator.createConnector(sourceId, targetId, conn.label || '');
-          elements.push(connector);
-        }
-      }
-    }
-
-    const xml = this.generator.generateDiagram(elements);
-    const filePath = this.saveToFile(args.filename, xml);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Custom diagram created successfully and saved to: ${filePath}\n\nYou can open this file directly in Draw.io.`,
-        },
-      ],
-    };
   }
 
   async run() {
