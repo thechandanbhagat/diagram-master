@@ -81,6 +81,10 @@ class DrawioMCPServer {
                 items: {
                   type: 'object',
                   properties: {
+                    id: {
+                      type: 'string',
+                      description: 'Optional unique identifier for the step (used for connections)',
+                    },
                     label: {
                       type: 'string',
                       description: 'Text label for the step',
@@ -92,10 +96,32 @@ class DrawioMCPServer {
                     },
                     connectorLabel: {
                       type: 'string',
-                      description: 'Optional label for the connector to this step',
+                      description: 'Optional label for the connector to this step (for sequential flow)',
                     },
                   },
                   required: ['label'],
+                },
+              },
+              connections: {
+                type: 'array',
+                description: 'Optional array of explicit connections between steps. If provided, overrides sequential flow.',
+                items: {
+                  type: 'object',
+                  properties: {
+                    from: {
+                      type: 'string',
+                      description: 'Source step ID',
+                    },
+                    to: {
+                      type: 'string',
+                      description: 'Target step ID',
+                    },
+                    label: {
+                      type: 'string',
+                      description: 'Connection label',
+                    },
+                  },
+                  required: ['from', 'to'],
                 },
               },
             },
@@ -345,7 +371,7 @@ class DrawioMCPServer {
   }
 
   handleCreateFlowchart(args) {
-    const xml = this.generator.createFlowchart(args.steps);
+    const xml = this.generator.createFlowchart(args.steps, args.connections);
     const filePath = this.saveToFile(args.filename, xml);
     return {
       content: [

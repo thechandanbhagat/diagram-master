@@ -117,29 +117,134 @@ export class DrawioGenerator {
     return xml;
   }
 
-  createFlowchart(steps) {
+  createFlowchart(steps, connections = []) {
     const elements = [];
-    const spacing = 150;
-    let currentY = 50;
-    let previousId = null;
+    const stepIds = {};
+    const stepMap = {};
 
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      const type = step.type || 'process';
-      const label = step.label || `Step ${i + 1}`;
-      const width = step.width || 120;
-      const height = step.height || 60;
+    // Map steps by ID
+    steps.forEach((step, index) => {
+      const id = step.id || (index + 1).toString();
+      stepIds[id] = null; // Will store generated ID later
+      stepMap[id] = { ...step, internalId: id };
+    });
 
-      const shape = this.createShape(label, type, 300, currentY, width, height);
-      elements.push(shape);
+    // Build graph for layout
+    const graph = {};
+    const reverseGraph = {}; // To find roots
+    Object.keys(stepMap).forEach(id => {
+      graph[id] = [];
+      if (!reverseGraph[id]) reverseGraph[id] = [];
+    });
 
-      if (previousId) {
-        const connector = this.createConnector(previousId, shape.id, step.connectorLabel || '');
-        elements.push(connector);
+    // Populate graph
+    if (connections && connections.length > 0) {
+      connections.forEach(conn => {
+        if (graph[conn.from] && stepMap[conn.to]) {
+          graph[conn.from].push(conn.to);
+          if (!reverseGraph[conn.to]) reverseGraph[conn.to] = [];
+          reverseGraph[conn.to].push(conn.from);
+        }
+      });
+    } else {
+      // Sequential default
+      const ids = Object.keys(stepMap);
+      for (let i = 0; i < ids.length - 1; i++) {
+        graph[ids[i]].push(ids[i + 1]);
+        if (!reverseGraph[ids[i + 1]]) reverseGraph[ids[i + 1]] = [];
+        reverseGraph[ids[i + 1]].push(ids[i]);
       }
+    }
 
-      previousId = shape.id;
-      currentY += spacing;
+    // BFS for Leveling
+    const levels = {};
+    const nodesByLevel = {};
+    const queue = [];
+    const visited = new Set();
+
+    // Find roots (nodes with no incoming edges)
+    const roots = Object.keys(stepMap).filter(id => reverseGraph[id].length === 0);
+    // If no roots (cycle?), pick the first one
+    if (roots.length === 0 && Object.keys(stepMap).length > 0) {
+      roots.push(Object.keys(stepMap)[0]);
+    }
+
+    roots.forEach(root => {
+      queue.push({ id: root, level: 0 });
+      visited.add(root);
+    });
+
+    while (queue.length > 0) {
+      const { id, level } = queue.shift();
+      levels[id] = level;
+
+      if (!nodesByLevel[level]) nodesByLevel[level] = [];
+      nodesByLevel[level].push(id);
+
+      graph[id].forEach(neighbor => {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push({ id: neighbor, level: level + 1 });
+        }
+      });
+    }
+
+    // Handle disconnected components or unvisited nodes
+    Object.keys(stepMap).forEach(id => {
+      if (!visited.has(id)) {
+        const maxLevel = Math.max(...Object.keys(nodesByLevel).map(Number), -1);
+        const newLevel = maxLevel + 1;
+        levels[id] = newLevel;
+        if (!nodesByLevel[newLevel]) nodesByLevel[newLevel] = [];
+        nodesByLevel[newLevel].push(id);
+      }
+    });
+
+    // Layout Parameters
+    const startX = 400; // Center X
+    const startY = 50;
+    const levelHeight = 120;
+    const nodeSpacing = 160; // Horizontal spacing
+
+    // Create Shapes with calculated positions
+    Object.keys(nodesByLevel).forEach(level => {
+      const nodes = nodesByLevel[level];
+      const rowWidth = (nodes.length - 1) * nodeSpacing;
+      const startRowX = startX - (rowWidth / 2);
+
+      nodes.forEach((nodeId, index) => {
+        const step = stepMap[nodeId];
+        const x = startRowX + (index * nodeSpacing);
+        const y = startY + (level * levelHeight);
+
+        const width = step.width || 120;
+        const height = step.height || 60;
+
+        const shape = this.createShape(step.label, step.type || 'process', x, y, width, height);
+        elements.push(shape);
+        stepIds[nodeId] = shape.id;
+        step.generatedId = shape.id;
+      });
+    });
+
+    // Create Connections
+    if (connections && connections.length > 0) {
+      connections.forEach(conn => {
+        const sourceId = stepIds[conn.from];
+        const targetId = stepIds[conn.to];
+        if (sourceId && targetId) {
+          elements.push(this.createConnector(sourceId, targetId, conn.label || ''));
+        }
+      });
+    } else {
+      // Sequential connections
+      const ids = Object.keys(stepMap);
+      for (let i = 0; i < ids.length - 1; i++) {
+        const sourceId = stepIds[ids[i]];
+        const targetId = stepIds[ids[i + 1]];
+        const label = stepMap[ids[i]].connectorLabel || '';
+        elements.push(this.createConnector(sourceId, targetId, label));
+      }
     }
 
     return this.generateDiagram(elements);
@@ -148,30 +253,58 @@ export class DrawioGenerator {
   createSequenceDiagram(participants, interactions) {
     const elements = [];
     const participantSpacing = 200;
-    const interactionHeight = 100;
+    const interactionSpacing = 60; // Vertical space between messages
+    const topMargin = 50;
     const participantIds = {};
+
+    // Calculate total height needed
+    const totalHeight = (interactions.length * interactionSpacing) + 100;
 
     // Create participants
     participants.forEach((participant, index) => {
       const x = 100 + (index * participantSpacing);
-      const shape = this.createShape(participant, 'actor', x, 50, 40, 80);
+      // Make the lifeline long enough for all interactions
+      const shape = this.createShape(participant, 'actor', x, topMargin, 40, totalHeight);
       elements.push(shape);
       participantIds[participant] = shape.id;
     });
 
-    // Create interactions
+    // Create interactions with proper vertical spacing
+    let currentY = topMargin + 80; // Start below the actors
+
     interactions.forEach((interaction, index) => {
       const sourceId = participantIds[interaction.from];
       const targetId = participantIds[interaction.to];
 
       if (sourceId && targetId) {
-        const connector = this.createConnector(
-          sourceId,
-          targetId,
-          interaction.message,
-          'edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=' + (interaction.dashed ? '1' : '0') + ';'
-        );
+        // Find X coordinates of source and target actors
+        const sourceIndex = participants.indexOf(interaction.from);
+        const targetIndex = participants.indexOf(interaction.to);
+        const sourceX = 100 + (sourceIndex * participantSpacing) + 20; // Center of actor
+        const targetX = 100 + (targetIndex * participantSpacing) + 20; // Center of actor
+
+        const style = 'edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;' +
+          (interaction.dashed ? 'dashed=1;' : '') +
+          'endArrow=' + (interaction.dashed ? 'open' : 'block') + ';' +
+          'endFill=' + (interaction.dashed ? '0' : '1') + ';';
+
+        const sourcePointId = this.getNextId();
+        const targetPointId = this.getNextId();
+
+        // Invisible nodes
+        const pointStyle = 'shape=ellipse;fillColor=none;strokeColor=none;resizable=0;';
+
+        const sourcePoint = this.createCell('', pointStyle, `x="${sourceX}" y="${currentY}" width="0" height="0" as="geometry"`, sourcePointId, '1', true);
+        const targetPoint = this.createCell('', pointStyle, `x="${targetX}" y="${currentY}" width="0" height="0" as="geometry"`, targetPointId, '1', true);
+
+        elements.push(sourcePoint);
+        elements.push(targetPoint);
+
+        // Connect them
+        const connector = this.createConnector(sourcePointId, targetPointId, interaction.message, style);
         elements.push(connector);
+
+        currentY += interactionSpacing;
       }
     });
 
